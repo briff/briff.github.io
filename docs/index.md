@@ -21,9 +21,8 @@ Addig is ajánljuk minden korábbi és reméljük továbbra is velünk maradó f
 
 - a korábbi fejlesztői csapat által készített és üzemeltetett [Régi Szentírás.hu](https://regi.szentiras.hu)-t, ahol a néhány éves szövegváltozatokat lehet a megszokott módon használni.
 és
-- a Szent Jeromos Bibliatársulat által készített és üzemeltetett új (Szentírás.hu)[https://szentiras.hu]-t, ahol frissített és bővített szövegeket lehet olvasni, sajnos a korábbi kényelmi funkciók nélkül
+- a Szent Jeromos Bibliatársulat által készített és üzemeltetett új [Szentírás.hu](https://szentiras.hu)-t, ahol frissített és bővített szövegeket lehet olvasni, sajnos a korábbi kényelmi funkciók nélkül
 
 Üdvözlettel:
 
-a szentiras.hu fejlesztői 2012-2024-ig
-a szentiras.eu fejlesztői 2025-től
+a szentiras.hu fejlesztői 2012-2024-ig, a szentiras.eu fejlesztői 2025-től
