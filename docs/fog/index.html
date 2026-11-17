@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kőhegy – above the fog?</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --ink:#1b2430; --muted:#5d6b7a; --line:#dde3ea;
+    --go:#1f9d55; --maybe:#d98a00; --no:#c0392b; --none:#6b7c8f; --fog:#b9c6d3; --sun:#f2b705;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f141a; --card:#18202a; --ink:#e7edf3; --muted:#9aa8b6; --line:#2a3542; --fog:#4a5868; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:14px 14px 40px}
+  h1{font-size:18px;margin:4px 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+  .verdict{border-width:2px}
+  .verdict .big{font-size:24px;font-weight:700;margin:2px 0 4px}
+  .verdict .when{font-size:13px;color:var(--muted)}
+  .v-go{border-color:var(--go)} .v-go .big{color:var(--go)}
+  .v-maybe{border-color:var(--maybe)} .v-maybe .big{color:var(--maybe)}
+  .v-infog,.v-under{border-color:var(--no)} .v-infog .big,.v-under .big{color:var(--no)}
+  .v-nofog,.v-night,.v-nodata{border-color:var(--none)} .v-nofog .big,.v-night .big,.v-nodata .big{color:var(--none)}
+  ul.why{margin:8px 0 0;padding-left:18px} ul.why li{margin:3px 0}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 8px}
+  .timeline{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+  .day-label{font-size:12px;color:var(--muted);margin:8px 0 4px}
+  .chip{flex:0 0 auto;min-width:46px;border-radius:10px;padding:6px 4px;text-align:center;font-size:12px;cursor:pointer;border:2px solid transparent;color:#fff}
+  .chip b{display:block;font-size:13px}
+  .chip.sel{border-color:var(--ink)}
+  .c-go{background:var(--go)} .c-maybe{background:var(--maybe)} .c-infog,.c-under{background:var(--no)}
+  .c-nofog,.c-night,.c-nodata{background:var(--none)}
+  .metar{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-word;background:var(--bg);border-radius:8px;padding:6px 8px;margin:4px 0 10px}
+  .row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .tag{display:inline-block;font-size:12px;border-radius:999px;padding:1px 8px;background:var(--bg);border:1px solid var(--line);margin:2px 4px 2px 0}
+  .tag.bad{border-color:var(--no);color:var(--no)} .tag.ok{border-color:var(--go);color:var(--go)}
+  svg text{fill:var(--muted);font-size:11px}
+  .legend{font-size:12px;color:var(--muted);margin-top:4px}
+  a{color:inherit}
+  .links a{display:block;padding:6px 0;border-bottom:1px solid var(--line);text-decoration:none}
+  .links a:last-child{border-bottom:0}
+  .links small{color:var(--muted)}
+  label{font-size:14px}
+  input[type=range]{width:100%}
+  button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer}
+  .muted{color:var(--muted);font-size:13px}
+  .err{color:var(--no);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kőhegy, Szentendre: above the fog?</h1>
+  <div class="sub">The valley is around 105 m. Target height: <b id="tgtLbl">350</b> m. <span id="updated"></span></div>
+
+  <div id="verdict" class="card verdict v-nodata">
+    <div class="when" id="vWhen">Loading…</div>
+    <div class="big" id="vBig">Fetching data</div>
+    <div id="vSub" class="muted"></div>
+    <ul class="why" id="vWhy"></ul>
+  </div>
+
+  <div class="card">
+    <h2>Hour by hour (model forecast)</h2>
+    <div id="timeline"></div>
+    <div class="legend">Tap an hour to see its profile below. <span style="color:var(--go)">■</span> go &nbsp;<span style="color:var(--maybe)">■</span> marginal &nbsp;<span style="color:var(--no)">■</span> in fog / under cloud &nbsp;<span style="color:var(--none)">■</span> no sea of fog / night</div>
+  </div>
+
+  <div class="card">
+    <h2>Vertical profile <span id="profHour"></span></h2>
+    <div id="profile"></div>
+    <div class="legend">The red line is temperature, which rises with height inside an inversion. Grey bands are moist (cloud or fog) layers, and the dashed line is your target height.</div>
+  </div>
+
+  <div class="card">
+    <h2>Airport reports now (METAR)</h2>
+    <div id="metars" class="muted">Loading…</div>
+  </div>
+
+  <div class="card">
+    <h2>Settings</h2>
+    <label>Target height: <b id="tgtVal">350</b> m</label>
+    <input id="tgt" type="range" min="200" max="600" step="10" value="350">
+    <div class="row" style="margin-top:8px">
+      <button id="reload">Refresh data</button>
+    </div>
+  </div>
+
+  <div class="card links">
+    <h2>Check with your own eyes</h2>
+    <a href="https://www.idokep.hu/webkamera" target="_blank" rel="noopener">Webcams (Dobogókő etc.) <small>– idokep.hu. If Dobogókő looks down on a white sea, fog is present.</small></a>
+    <a href="https://view.eumetsat.int/" target="_blank" rel="noopener">Satellite: EUMETSAT View <small>– check whether the Szentendre hills poke out of the white low-stratus layer</small></a>
+    <a href="https://weather.uwyo.edu/upperair/sounding.shtml" target="_blank" rel="noopener">Radiosonde Budapest (12843) <small>– measured inversion, launched 00 and 12 UTC</small></a>
+    <a href="https://www.met.hu/" target="_blank" rel="noopener">HungaroMet <small>– official forecasts and fog warnings</small></a>
+  </div>
+
+  <p class="muted">The fog base comes from airport observations (Ferenc Liszt LHBP, Budaörs LHBS, Tököl LHTL, all 20–35 km south), via the Iowa State Mesonet or aviationweather.gov. The fog top comes from the Open-Meteo forecast model (pressure levels and 80/120/180 m temperatures). Models often miss the exact height of the fog top by 50–150 m, so treat a "marginal" verdict as a coin flip.</p>
+</div>
+
+<script>
+/* ===== LOGIC START ===== */
+const SITE = { lat: 47.676, lon: 19.055, valleyElev: 105, name: "Szentendre / Kőhegy" };
+const STATIONS = { LHBP: { elev: 151, name: "Budapest Ferenc Liszt" }, LHBS: { elev: 121, name: "Budaörs" }, LHTL: { elev: 98, name: "Tököl" } };
+const LEVELS = [1000, 975, 950, 925, 900, 850];
+const WET_RH = 95, DRY_RH = 90, TOP_RH = 93;
+
+function parseMetar(raw) {
+  const out = { raw, vis: null, cavok: false, wx: [], clouds: [], temp: null, dew: null, time: null };
+  if (!raw) return out;
+  const toks = raw.trim().split(/\s+/);
+  for (const t of toks) {
+    if (t === "RMK") break;
+    if (/^\d{6}Z$/.test(t)) out.time = t;
+    else if (t === "CAVOK") { out.cavok = true; out.vis = 10000; }
+    else if (/^\d{4}$/.test(t) && out.vis === null) out.vis = +t;
+    else if (/^(FEW|SCT|BKN|OVC)(\d{3})/.test(t)) { const m = t.match(/^(FEW|SCT|BKN|OVC)(\d{3})/); out.clouds.push({ cover: m[1], baseFt: +m[2] * 100 }); }
+    else if (/^VV(\d{3}|\/\/\/)/.test(t)) { const m = t.match(/^VV(\d{3})/); out.clouds.push({ cover: "VV", baseFt: m ? +m[1] * 100 : 0 }); }
+    else if (/^(M?\d{2})\/(M?\d{2})$/.test(t)) { const m = t.match(/^(M?\d{2})\/(M?\d{2})$/); const f = s => (s[0] === "M" ? -1 : 1) * +s.replace("M", ""); out.temp = f(m[1]); out.dew = f(m[2]); }
+    else if (/^(\+|-|VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ)+$/.test(t)) out.wx.push(t);
+  }
+  return out;
+}
+
+// Summarise one METAR: is there fog / low cloud at the airport? what is the ceiling ASL?
+function metarFog(m, elev) {
+  const fog = m.wx.some(w => /FG/.test(w)) || (m.vis !== null && m.vis < 1000);
+  const mist = m.wx.some(w => /BR|HZ/.test(w)) || (m.vis !== null && m.vis < 5000);
+  const ceil = m.clouds.filter(c => ["BKN", "OVC", "VV"].includes(c.cover)).sort((a, b) => a.baseFt - b.baseFt)[0];
+  const ceilAgl = ceil ? Math.round(ceil.baseFt * 0.3048) : null;
+  const ceilAsl = ceil ? elev + ceilAgl : null;
+  const lowCeil = ceilAgl !== null && ceilAgl <= 300;
+  return { fog, mist, lowCeil, ceilAgl, ceilAsl, ceilCover: ceil ? ceil.cover : null };
+}
+
+// Build a profile for hour i from Open-Meteo hourly arrays.
+function buildProfile(H, i, elev) {
+  const T = [], M = [];
+  const t2 = H.temperature_2m?.[i], rh2 = H.relative_humidity_2m?.[i];
+  if (t2 != null) T.push({ z: elev + 2, t: t2 });
+  if (rh2 != null) M.push({ z: elev + 2, rh: rh2, cc: Math.max(H.cloud_cover_low?.[i] ?? 0, (H.visibility?.[i] ?? 99999) < 1000 ? 100 : 0) });
+  for (const h of [80, 120, 180]) { const v = H["temperature_" + h + "m"]?.[i]; if (v != null) T.push({ z: elev + h, t: v }); }
+  for (const p of LEVELS) {
+    const z = H["geopotential_height_" + p + "hPa"]?.[i];
+    if (z == null || z <= elev + 20) continue;
+    const t = H["temperature_" + p + "hPa"]?.[i], rh = H["relative_humidity_" + p + "hPa"]?.[i], cc = H["cloud_cover_" + p + "hPa"]?.[i];
+    if (t != null) T.push({ z, t });
+    if (rh != null) M.push({ z, rh, cc: cc ?? 0 });
+  }
+  T.sort((a, b) => a.z - b.z); M.sort((a, b) => a.z - b.z);
+  return { T, M };
+}
+
+const isWet = p => p.rh >= WET_RH || p.cc >= 60;
+
+// Moist layers: contiguous wet points; base/top interpolated toward neighbouring dry points.
+function wetLayers(M) {
+  const layers = []; let cur = null;
+  const interp = (a, b) => { // z where RH crosses TOP_RH between wet a and dry b
+    if (a.rh > TOP_RH && b.rh < TOP_RH) return a.z + (a.rh - TOP_RH) / (a.rh - b.rh) * (b.z - a.z);
+    return (a.z + b.z) / 2;
+  };
+  for (let k = 0; k < M.length; k++) {
+    if (isWet(M[k])) {
+      if (!cur) cur = { base: k === 0 ? M[0].z - 2 : interp(M[k], M[k - 1]), top: null, open: true };
+    } else if (cur) {
+      cur.top = interp(M[k - 1], M[k]); cur.open = false; layers.push(cur); cur = null;
+    }
+  }
+  if (cur) { cur.top = M[M.length - 1].z; layers.push(cur); }
+  return layers.map(l => ({ base: Math.round(l.base), top: Math.round(l.top), open: l.open }));
+}
+
+// Strongest inversion (temperature rising with height).
+function inversion(T) {
+  let best = null;
+  for (let a = 0; a < T.length - 1; a++) {
+    let b = a;
+    while (b + 1 < T.length && T[b + 1].t > T[b].t - 0.05) b++;
+    const dT = T[b].t - T[a].t;
+    if (b > a && dT >= 1 && (!best || dT > best.dT)) best = { base: Math.round(T[a].z), top: Math.round(T[b].z), dT: +dT.toFixed(1) };
+    a = Math.max(a, b - 1);
+  }
+  return best;
+}
+
+// Interpolate a value of a profile at altitude z
+function at(arr, key, z) {
+  if (!arr.length) return null;
+  if (z <= arr[0].z) return arr[0][key];
+  for (let k = 0; k < arr.length - 1; k++) if (z <= arr[k + 1].z) {
+    const a = arr[k], b = arr[k + 1]; return a[key] + (b[key] - a[key]) * (z - a.z) / (b.z - a.z);
+  }
+  return arr[arr.length - 1][key];
+}
+
+// Main decision for one hour. obs = optional METAR summary for "now".
+function decide(H, i, target, elev, obs) {
+  const prof = buildProfile(H, i, elev);
+  const layers = wetLayers(prof.M);
+  const inv = inversion(prof.T);
+  const why = [];
+  const day = H.is_day ? H.is_day[i] === 1 : true;
+  const vis = H.visibility?.[i];
+  const upper = Math.max(H.cloud_cover_mid?.[i] ?? 0, H.cloud_cover_high?.[i] ?? 0);
+
+  // Low layer touching or near the ground (fog / low stratus)
+  let low = layers.find(l => l.base < elev + 250);
+  // If the model shows no layer but the inversion is capping moist air, use the inversion base as fog top
+  if (!low && inv && (H.relative_humidity_2m?.[i] ?? 0) >= 97 && inv.base < elev + 400)
+    low = { base: elev, top: inv.base, open: false, fromInv: true };
+
+  let fogBelow = !!low;
+  let src = "model";
+  if (obs) {
+    if (obs.anyFog || obs.anyLowCeil) { fogBelow = true; src = "observed"; }
+    else if (!obs.anyMist && fogBelow) { why.push("The model expects fog, but the airports currently report none."); }
+  }
+
+  let top = low ? low.top : null;
+  if (low && low.open) top = 9999;
+  // Observed ceiling ABOVE target means the summit is under (or in) the cloud deck
+  const obsCeilAboveTarget = obs && obs.ceilAsl != null && obs.ceilAsl > target + 30;
+
+  let v;
+  if (!fogBelow) {
+    v = "nofog";
+    why.push(vis != null ? `The model shows no fog in the valley (visibility ~${vis >= 10000 ? ">10" : (vis / 1000).toFixed(1)} km).` : "No fog expected in the valley.");
+    const lowc = H.cloud_cover_low?.[i] ?? 0;
+    why.push(Math.max(lowc, upper) >= 70 ? "Cloudy skies, though, so it's grey both down in town and up on the hill." : "Sunny or partly sunny everywhere. Nice, but no sea of fog to see.");
+  } else if (obsCeilAboveTarget) {
+    v = "under";
+    why.push(`The airports report the cloud deck base at ~${obs.ceilAsl} m above sea level, which is above your ${target} m, so the fog has lifted into low stratus and the hill is underneath it.`);
+  } else if (top == null) {
+    v = "maybe"; why.push("Fog is below, but the model can't see where its top is.");
+  } else if (top >= 9999) {
+    v = "infog"; why.push("The moist layer reaches above 1.5 km, so this is deep cloud, not a thin fog layer.");
+  } else if (top < target - 40) {
+    v = "go"; why.push(`Estimated fog top ~${top} m, about ${target - top} m below your target.`);
+  } else if (top <= target + 40) {
+    v = "maybe"; why.push(`Estimated fog top ~${top} m, too close to call against your ${target} m.`);
+  } else {
+    v = "infog"; why.push(`Estimated fog top ~${top} m, higher than your ${target} m.`);
+  }
+  if (fogBelow && src === "observed") why.unshift("The airports currently report fog or a low ceiling (observed).");
+  if (inv) why.push(`Inversion from ~${inv.base} m to ~${inv.top} m (+${inv.dT} °C). The fog top usually sits at its base.`);
+
+  // Is there sun above? Cloud layers above the target, or mid/high cloud
+  const above = layers.filter(l => l !== low && l.base > target);
+  if (v === "go" || v === "maybe") {
+    if (above.length) { v = v === "go" ? "maybe" : v; why.push(`There's another cloud layer from ~${above[0].base} m, so the sun may be hidden even above the fog.`); }
+    else if (upper >= 70) { if (v === "go") v = "maybe"; why.push(`${upper}% mid/high cloud cover, so you'd be above the fog but under a grey sky.`); }
+    else why.push(upper < 30 ? "Clear sky above the inversion ☀️" : `Some mid/high cloud (${upper}%), mostly sunny above.`);
+  }
+  const rhT = at(prof.M, "rh", target);
+  if (rhT != null) why.push(`The model shows ${Math.round(rhT)}% relative humidity at ${target} m.`);
+  if (!day && v !== "nofog") { why.push("This hour is before sunrise or after sunset."); }
+  return { v, why, prof, layers, inv, top, day, low };
+}
+/* ===== LOGIC END ===== */
+
+const LABEL = {
+  go: ["Go! You'll likely be above the fog", "Sea of fog below, sun on the summit."],
+  maybe: ["Marginal", "The fog top is near your height, or the sky above is uncertain."],
+  infog: ["You'd stay in the fog", "The fog layer is deeper than your hike."],
+  under: ["Under the cloud deck", "The fog has lifted into low stratus above the summit."],
+  nofog: ["No sea of fog", "The valley is clear, so there's nothing to climb above."],
+  night: ["Dark", ""], nodata: ["No data", ""]
+};
+
+let H = null, META = null, OBS = null, sel = null;
+let target = 350;
+try { const s = localStorage.getItem("kohegyTarget"); if (s) target = +s; } catch (e) {}
+
+const $ = id => document.getElementById(id);
+const fmtH = s => s.slice(11, 16);
+const dayName = s => new Date(s.slice(0, 10) + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+async function fetchModel() {
+  const hv = ["temperature_2m", "relative_humidity_2m", "visibility", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "is_day",
+    "temperature_80m", "temperature_120m", "temperature_180m"];
+  for (const p of LEVELS) hv.push(`temperature_${p}hPa`, `relative_humidity_${p}hPa`, `cloud_cover_${p}hPa`, `geopotential_height_${p}hPa`);
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${SITE.lat}&longitude=${SITE.lon}&elevation=${SITE.valleyElev}&hourly=${hv.join(",")}&timezone=Europe%2FBudapest&forecast_days=3`;
+  const r = await fetch(url); if (!r.ok) throw new Error("Open-Meteo " + r.status);
+  const j = await r.json(); return j;
+}
+
+async function fetchMetars() {
+  const ids = Object.keys(STATIONS);
+  // 1) Iowa State Mesonet (CORS-friendly mirror of global METARs)
+  try {
+    const res = await Promise.all(ids.map(async id => {
+      const r = await fetch(`https://mesonet.agron.iastate.edu/api/1/currents.json?station=${id}`);
+      if (!r.ok) throw 0; const j = await r.json(); const d = (j.data || [])[0];
+      return d && (d.raw || d.metar) ? { id, raw: d.raw || d.metar, src: "IEM" } : null;
+    }));
+    const ok = res.filter(Boolean); if (ok.length) return ok;
+  } catch (e) {}
+  // 2) aviationweather.gov directly (works only if the browser allows it)
+  try {
+    const r = await fetch(`https://aviationweather.gov/api/data/metar?ids=${ids.join(",")}&format=json`);
+    if (r.ok) { const j = await r.json(); const ok = j.map(d => ({ id: d.icaoId, raw: d.rawOb, src: "AWC" })); if (ok.length) return ok; }
+  } catch (e) {}
+  throw new Error("METAR unavailable");
+}
+
+function summariseObs(list) {
+  const s = { anyFog: false, anyMist: false, anyLowCeil: false, ceilAsl: null, items: [] };
+  for (const o of list) {
+    const m = parseMetar(o.raw), st = STATIONS[o.id] || { elev: 130, name: o.id }, f = metarFog(m, st.elev);
+    s.items.push({ ...o, m, f, st });
+    s.anyFog ||= f.fog; s.anyMist ||= f.mist; s.anyLowCeil ||= f.lowCeil;
+    if (f.ceilAsl != null && (f.fog || f.lowCeil || f.ceilAgl < 600)) s.ceilAsl = Math.min(s.ceilAsl ?? 1e9, f.ceilAsl);
+  }
+  return s;
+}
+
+function nowIndex() {
+  const now = new Date(); const pad = n => String(n).padStart(2, "0");
+  const key = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`;
+  const i = H.time.indexOf(key); return i < 0 ? 0 : i;
+}
+
+function render() {
+  $("tgtLbl").textContent = target; $("tgtVal").textContent = target; $("tgt").value = target;
+  if (!H) return;
+  const ni = nowIndex();
+  // headline: now if daylight, else next daylight hour
+  let hi = ni; while (hi < H.time.length && H.is_day[hi] !== 1) hi++;
+  if (hi >= H.time.length) hi = ni;
+  const useObs = hi === ni && OBS;
+  const d = decide(H, hi, target, SITE.valleyElev, useObs ? OBS : null);
+  const card = $("verdict"); card.className = "card verdict v-" + d.v;
+  $("vWhen").textContent = (hi === ni ? "Now" : "Next daylight hour") + " · " + dayName(H.time[hi]) + " " + fmtH(H.time[hi]) + (useObs ? " · uses live airport reports" : " · forecast");
+  $("vBig").textContent = LABEL[d.v][0]; $("vSub").textContent = LABEL[d.v][1];
+  $("vWhy").innerHTML = ""; d.why.forEach(w => { const li = document.createElement("li"); li.textContent = w; $("vWhy").appendChild(li); });
+
+  // timeline: daylight-ish hours 6..16 for the next 3 days, from now
+  const tl = $("timeline"); tl.innerHTML = "";
+  let curDay = null, row = null;
+  for (let i = ni; i < H.time.length; i++) {
+    const hr = +H.time[i].slice(11, 13); if (hr < 6 || hr > 16) continue;
+    const dd = H.time[i].slice(0, 10);
+    if (dd !== curDay) { curDay = dd; const l = document.createElement("div"); l.className = "day-label"; l.textContent = dayName(H.time[i]); tl.appendChild(l); row = document.createElement("div"); row.className = "timeline"; tl.appendChild(row); }
+    const r = decide(H, i, target, SITE.valleyElev, i === ni ? OBS : null);
+    const vv = !r.day && r.v !== "nofog" ? "night" : r.v;
+    const c = document.createElement("div"); c.className = "chip c-" + vv + (i === (sel ?? hi) ? " sel" : "");
+    c.innerHTML = `<b>${fmtH(H.time[i])}</b>${r.top != null && r.top < 9999 ? r.top + " m" : r.v === "nofog" ? "clear" : "–"}`;
+    c.onclick = () => { sel = i; render(); };
+    row.appendChild(c);
+  }
+  const pi = sel ?? hi;
+  const pd = decide(H, pi, target, SITE.valleyElev, pi === ni ? OBS : null);
+  $("profHour").textContent = "· " + dayName(H.time[pi]) + " " + fmtH(H.time[pi]) + " · " + LABEL[pd.v][0];
+  drawProfile(pd);
+}
+
+function drawProfile(d) {
+  const W = Math.min($("profile").clientWidth || 600, 600), Hh = 260, L = 40, R = 10, Tp = 10, B = 28;
+  const zMax = 900, zMin = 50;
+  const Ts = d.prof.T.filter(p => p.z <= zMax);
+  if (!Ts.length) { $("profile").textContent = "No profile data."; return; }
+  let tmin = Math.min(...Ts.map(p => p.t)) - 1, tmax = Math.max(...Ts.map(p => p.t)) + 1;
+  const x = t => L + (t - tmin) / (tmax - tmin) * (W - L - R);
+  const y = z => Tp + (1 - (z - zMin) / (zMax - zMin)) * (Hh - Tp - B);
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Temperature and moisture profile">`;
+  for (const l of d.layers) {
+    const b = Math.max(l.base, zMin), t = Math.min(l.top, zMax); if (t <= b) continue;
+    s += `<rect x="${L}" y="${y(t)}" width="${W - L - R}" height="${y(b) - y(t)}" fill="var(--fog)" opacity=".7"/>`;
+  }
+  for (let z = 100; z <= zMax; z += 100) s += `<line x1="${L}" x2="${W - R}" y1="${y(z)}" y2="${y(z)}" stroke="var(--line)"/><text x="${L - 4}" y="${y(z) + 4}" text-anchor="end">${z}</text>`;
+  const step = (tmax - tmin) > 12 ? 4 : 2;
+  for (let t = Math.ceil(tmin / step) * step; t <= tmax; t += step) s += `<text x="${x(t)}" y="${Hh - 8}" text-anchor="middle">${t}°</text>`;
+  s += `<rect x="${L}" y="${y(SITE.valleyElev)}" width="${W - L - R}" height="${y(zMin) - y(SITE.valleyElev)}" fill="var(--muted)" opacity=".25"/>`;
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(target)}" y2="${y(target)}" stroke="var(--ink)" stroke-dasharray="5 4"/><text x="${W - R - 2}" y="${y(target) - 4}" text-anchor="end" style="fill:var(--ink)">target ${target} m</text>`;
+  s += `<polyline fill="none" stroke="#e0533d" stroke-width="2.5" points="${Ts.map(p => x(p.t) + "," + y(p.z)).join(" ")}"/>`;
+  Ts.forEach(p => s += `<circle cx="${x(p.t)}" cy="${y(p.z)}" r="3" fill="#e0533d"><title>${Math.round(p.z)} m: ${p.t.toFixed(1)} °C</title></circle>`);
+  s += `<text x="4" y="12">m</text></svg>`;
+  $("profile").innerHTML = s;
+}
+
+function renderMetars() {
+  const el = $("metars");
+  if (!OBS) { el.innerHTML = `<span class="err">Couldn't load airport reports right now.</span> <a href="https://aviationweather.gov/data/metar/?ids=LHBP,LHBS,LHTL" target="_blank" rel="noopener">Open them on aviationweather.gov</a>`; return; }
+  el.innerHTML = "";
+  for (const it of OBS.items) {
+    const div = document.createElement("div");
+    const tags = [];
+    if (it.f.fog) tags.push(["bad", "FOG"]); else if (it.f.mist) tags.push(["", "mist/haze"]);
+    if (it.m.vis != null) tags.push(["", "vis " + (it.m.vis >= 9999 ? ">10 km" : it.m.vis + " m")]);
+    if (it.f.ceilAgl != null) tags.push([it.f.lowCeil ? "bad" : "", `${it.f.ceilCover} ${it.f.ceilAgl} m AGL (~${it.f.ceilAsl} m ASL)`]);
+    else if (!it.f.fog) tags.push(["ok", "no low ceiling"]);
+    if (it.m.temp != null) tags.push(["", `${it.m.temp}/${it.m.dew} °C`]);
+    const h = document.createElement("div"); h.innerHTML = `<b>${it.id}</b> <span class="muted">${it.st.name}</span><br>`;
+    tags.forEach(([c, t]) => { const sp = document.createElement("span"); sp.className = "tag " + c; sp.textContent = t; h.appendChild(sp); });
+    const raw = document.createElement("div"); raw.className = "metar"; raw.textContent = it.raw;
+    div.appendChild(h); div.appendChild(raw); el.appendChild(div);
+  }
+}
+
+async function load() {
+  $("updated").textContent = "";
+  $("vWhen").textContent = "Loading…";
+  const [m, o] = await Promise.allSettled([fetchModel(), fetchMetars()]);
+  if (m.status === "fulfilled") { META = m.value; H = META.hourly; } else { $("vBig").textContent = "Couldn't load the forecast model"; $("vSub").textContent = String(m.reason); }
+  OBS = o.status === "fulfilled" ? summariseObs(o.value) : null;
+  renderMetars(); render();
+  $("updated").textContent = "Updated " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+$("tgt").oninput = e => { target = +e.target.value; try { localStorage.setItem("kohegyTarget", target); } catch (er) {} render(); };
+$("reload").onclick = load;
+window.addEventListener("resize", () => H && render());
+load();
+</script>
+</body>
+</html>
